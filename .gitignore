@@ -1,2 +1,5 @@
-digital_service_ecosystem
-.env
+infrastructure/traefik
+infrastructure/.env
+
+service/notification_service
+service/.env

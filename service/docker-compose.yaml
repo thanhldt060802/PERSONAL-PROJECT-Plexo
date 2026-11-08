@@ -1,0 +1,42 @@
+services:
+  plexo-notification_service:
+    image: thanhldt060802/personal-project-plexo-notification_service:main-latest
+    container_name: plexo-notification_service
+    restart: no
+    # ports:
+    #   - "${NOTIFICATION_SERVICE_PORT}:8000"
+    volumes:
+      - ./notification_service/config:/app/config
+      - ./notification_service/tmp:/app/tmp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=my_docker_network"
+      - "traefik.http.routers.notification-service.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/notification`)"
+      - "traefik.http.routers.notification-service.entrypoints=web"
+      - "traefik.http.routers.notification-service.middlewares=cors@file"
+      - "traefik.http.services.notification-service.loadbalancer.server.port=8000"
+    networks:
+      - my_docker_network
+
+  # plexo-xxx_service:
+  #   image: thanhldt060802/personal-project-plexo-xxx_service:main-latest
+  #   container_name: plexo-xxx_service
+  #   restart: no
+  #   # ports:
+  #   #   - "${XXX_SERVICE_PORT}:8000"
+  #   volumes:
+  #     - ./xxx_service/config:/app/config
+  #     - ./xxx_service/tmp:/app/tmp
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=my_docker_network"
+  #     - "traefik.http.routers.xxx-service.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/xxx`)"
+  #     - "traefik.http.routers.xxx-service.entrypoints=web"
+  #     - "traefik.http.routers.xxx-service.middlewares=cors@file"
+  #     - "traefik.http.services.xxx-service.loadbalancer.server.port=8000"
+  #   networks:
+  #     - my_docker_network
+
+networks:
+  my_docker_network:
+    external: true

@@ -1,0 +1,45 @@
+services:
+  plexo-ngrok:
+    image: ngrok/ngrok:latest
+    container_name: plexo-ngrok
+    restart: no
+    ports:
+      - "${NGROK_UI_PORT}:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: [
+      "http", "host.docker.internal:${NGROK_LOCAL_HTTP_REGISTER_PORT}"
+    ]
+    networks:
+      - my_docker_network
+
+  plexo-traefik:
+    image: traefik:latest
+    container_name: plexo-traefik
+    restart: no
+    ports:
+      - 80:80
+      - ${TRAEFIK_UI_PORT}:9090
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/certs:/etc/traefik/certs:ro
+      - ./traefik/traefik-data/traefik.yml:/traefik.yml:ro
+      - ./traefik/traefik-data/configurations:/configurations
+      - ./traefik/traefik-data/acme.json:/acme.json
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=my_docker_network"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=cors@file"
+      - "traefik.http.routers.traefik.middlewares=user-auth@file"
+    networks:
+      - my_docker_network
+
+networks:
+  my_docker_network:
+    external: true
