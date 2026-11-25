@@ -1,45 +1,90 @@
-services:
-  plexo-ngrok:
-    image: ngrok/ngrok:latest
-    container_name: plexo-ngrok
-    restart: no
-    ports:
-      - "${NGROK_UI_PORT}:4040"
-    environment:
-      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    command: [
-      "http", "host.docker.internal:${NGROK_LOCAL_HTTP_REGISTER_PORT}"
-    ]
-    networks:
-      - my_docker_network
+# Hạ tầng của MỘT môi trường Plexo ("stack"): Postgres, Redis, Traefik, Cloudflare Tunnel.
+#
+# Mỗi môi trường là một bản clone repo riêng trên server (ví dụ /srv/plexo-prod, /srv/plexo-dev) với `.env`
+# riêng. Mọi tên (compose project, container, network) theo STACK_NAME = <app>-<env> nên không đụng
+# môi trường khác hay app khác trên cùng server; dữ liệu Postgres / Redis nằm trong thư mục của bản clone.
+#
+#   Server: docker compose --profile server up -d      (thêm Traefik + Cloudflare Tunnel)
+#   Local:  docker compose up -d postgres redis
+name: ${STACK_NAME}-infrastructure
 
-  plexo-traefik:
-    image: traefik:latest
-    container_name: plexo-traefik
-    restart: no
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${STACK_NAME}-postgres
+    restart: unless-stopped
+    # Chỉ mở cho chính máy chủ (debug / chạy local); mỗi stack một port khác nhau
     ports:
-      - 80:80
-      - ${TRAEFIK_UI_PORT}:9090
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TZ=Asia/Ho_Chi_Minh
     volumes:
-      # - /etc/localtime:/etc/localtime:ro
+      - ./postgres/data:/var/lib/postgresql
+      # Tạo database + user riêng cho từng service khi khởi tạo lần đầu (file *.sql, không commit)
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stack
+
+  redis:
+    image: redis:8-alpine
+    container_name: ${STACK_NAME}-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    # AOF để restart không mất phiên đăng nhập / trận đang chơi; ACL user riêng cho từng service
+    command: ["redis-server", "--appendonly", "yes", "--aclfile", "/usr/local/etc/redis/users.acl"]
+    volumes:
+      - ./redis/data:/data
+      - ./redis/users.acl:/usr/local/etc/redis/users.acl:ro
+    networks:
+      - stack
+
+  # Reverse proxy của stack: định tuyến theo Host / path tới các service (labels trong service/docker-compose.yaml).
+  # Không mở port ra ngoài — chỉ Cloudflare Tunnel gọi vào qua network của stack.
+  traefik:
+    image: traefik:v3
+    container_name: ${STACK_NAME}-traefik
+    restart: unless-stopped
+    profiles: ["server"]
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${STACK_NAME}
+      # Chỉ nhận container của stack này (Traefik đọc Docker socket nên thấy mọi container trên máy)
+      - --providers.docker.constraints=Label(`plexo.stack`,`${STACK_NAME}`)
+      - --entrypoints.web.address=:80
+      # Giữ X-Forwarded-For do Cloudflare gửi (Traefik chỉ nhận request từ network nội bộ)
+      - --entrypoints.web.forwardedHeaders.insecure=true
+      - --log.level=INFO
+    volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/certs:/etc/traefik/certs:ro
-      - ./traefik/traefik-data/traefik.yml:/traefik.yml:ro
-      - ./traefik/traefik-data/configurations:/configurations
-      - ./traefik/traefik-data/acme.json:/acme.json
     security_opt:
       - no-new-privileges:true
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=my_docker_network"
-      - "traefik.http.routers.traefik.entrypoints=web"
-      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.middlewares=cors@file"
-      - "traefik.http.routers.traefik.middlewares=user-auth@file"
     networks:
-      - my_docker_network
+      - stack
+
+  # Cloudflare Tunnel của stack: kết nối ra Cloudflare (không cần IP công khai / mở port), HTTPS do Cloudflare lo.
+  # Public hostname của tunnel trỏ về http://traefik:80 (cấu hình trên Cloudflare dashboard).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ${STACK_NAME}-cloudflared
+    restart: unless-stopped
+    profiles: ["server"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - traefik
+    networks:
+      - stack
 
 networks:
-  my_docker_network:
-    external: true
+  stack:
+    name: ${STACK_NAME}

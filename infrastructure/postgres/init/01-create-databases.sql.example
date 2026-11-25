@@ -1,0 +1,10 @@
+-- Copy thành 01-create-databases.sql (không commit) và đổi mật khẩu trước khi khởi tạo Postgres lần đầu.
+-- Mỗi service có database + user riêng; user là owner nên chỉ có quyền trên database của mình.
+
+CREATE USER admin WITH PASSWORD 'change-me';
+CREATE DATABASE plexo_admin OWNER admin;
+REVOKE ALL ON DATABASE plexo_admin FROM PUBLIC;
+
+CREATE USER caro_game WITH PASSWORD 'change-me';
+CREATE DATABASE plexo_caro_game OWNER caro_game;
+REVOKE ALL ON DATABASE plexo_caro_game FROM PUBLIC;

@@ -1,0 +1,5 @@
+# Copy thành users.acl (không commit) và đổi mật khẩu.
+# Mỗi service một ACL user, chỉ truy cập key / channel có prefix của mình.
+user default off
+user admin on >change-me ~admin:* &admin:* +@all -@dangerous
+user caro on >change-me ~caro:* &caro:* +@all -@dangerous

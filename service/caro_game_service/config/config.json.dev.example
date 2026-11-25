@@ -1,0 +1,45 @@
+{
+    "app": {
+        "name": "caro-game-service",
+        "env": "dev"
+    },
+    "http": {
+        "port": 8000,
+        "base_path": "/caro-game",
+        "cors_allowed_origins": [
+            "https://plexo-dev.thanhldt.site"
+        ]
+    },
+    "log": {
+        "level": "info",
+        "format": "json",
+        "file": "/app/tmp/console.log"
+    },
+    "database": {
+        "dsn": "postgres://caro_game:change-me@postgres:5432/plexo_caro_game?sslmode=disable",
+        "auto_migrate": true
+    },
+    "redis": {
+        "addr": "redis:6379",
+        "username": "caro",
+        "password": "change-me",
+        "db": 0
+    },
+    "auth": {
+        "cookie_name": "plexo_session"
+    },
+    "services": {
+        "admin": {
+            "base_url": "http://admin_service:8000/admin/v1",
+            "timeout": "3s"
+        }
+    },
+    "game": {
+        "board_size": 15,
+        "win_length": 5,
+        "block_both_ends": false,
+        "turn_timeout": "30s",
+        "state_ttl": "2h",
+        "room_ttl": "5m"
+    }
+}

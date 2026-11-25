@@ -1,0 +1,50 @@
+{
+    "app": {
+        "name": "admin-service",
+        "env": "dev"
+    },
+    "http": {
+        "port": 8000,
+        "base_path": "/admin",
+        "cors_allowed_origins": [
+            "https://plexo-dev.thanhldt.site"
+        ]
+    },
+    "log": {
+        "level": "info",
+        "format": "json",
+        "file": "/app/tmp/console.log"
+    },
+    "database": {
+        "dsn": "postgres://admin:change-me@postgres:5432/plexo_admin?sslmode=disable",
+        "auto_migrate": true
+    },
+    "redis": {
+        "addr": "redis:6379",
+        "username": "admin",
+        "password": "change-me",
+        "db": 0
+    },
+    "auth": {
+        "cookie_name": "plexo_session",
+        "cookie_domain": "plexo-dev.thanhldt.site",
+        "cookie_secure": true,
+        "session_idle_ttl": "168h",
+        "session_max_age": "720h",
+        "admin_api_key": "change-me-admin-key"
+    },
+    "seed": {
+        "dev_users": [
+            {
+                "username": "player1",
+                "display_name": "Player 1",
+                "password": "change-me-123"
+            },
+            {
+                "username": "player2",
+                "display_name": "Player 2",
+                "password": "change-me-123"
+            }
+        ]
+    }
+}

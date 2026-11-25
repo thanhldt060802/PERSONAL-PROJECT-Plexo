@@ -1,42 +1,104 @@
+# Các service / ứng dụng của MỘT môi trường Plexo (cùng STACK_NAME với infrastructure/, chạy sau infrastructure).
+#
+#   BE  → https://${API_DOMAIN}/<service>/...   (port 8000 trong container)
+#   FE  → https://${WEB_DOMAIN}/...             (port 3000 trong container; game ở /games/<game-name>)
+#
+# Label `plexo.stack` để Traefik của đúng stack nhận container; tên router có STACK_NAME để không trùng.
+# CI deploy từng service: docker compose pull <service> && docker compose up -d <service>
+name: ${STACK_NAME}-service
+
 services:
-  plexo-notification_service:
-    image: thanhldt060802/personal-project-plexo-notification_service:main-latest
-    container_name: plexo-notification_service
-    restart: no
-    # ports:
-    #   - "${NOTIFICATION_SERVICE_PORT}:8000"
+  # ───────────────────────────── BE ─────────────────────────────
+
+  notification_service:
+    image: ${DOCKERHUB_USERNAME}/personal-project-plexo-notification_service:${IMAGE_TAG}
+    container_name: ${STACK_NAME}-notification_service
+    restart: unless-stopped
     volumes:
       - ./notification_service/config:/app/config
       - ./notification_service/tmp:/app/tmp
     labels:
+      - "plexo.stack=${STACK_NAME}"
       - "traefik.enable=true"
-      - "traefik.docker.network=my_docker_network"
-      - "traefik.http.routers.notification-service.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/notification`)"
-      - "traefik.http.routers.notification-service.entrypoints=web"
-      - "traefik.http.routers.notification-service.middlewares=cors@file"
-      - "traefik.http.services.notification-service.loadbalancer.server.port=8000"
+      - "traefik.http.routers.${STACK_NAME}-notification.rule=Host(`${API_DOMAIN}`) && PathPrefix(`/notification`)"
+      - "traefik.http.routers.${STACK_NAME}-notification.entrypoints=web"
+      - "traefik.http.services.${STACK_NAME}-notification.loadbalancer.server.port=8000"
     networks:
-      - my_docker_network
+      - stack
 
-  # plexo-xxx_service:
-  #   image: thanhldt060802/personal-project-plexo-xxx_service:main-latest
-  #   container_name: plexo-xxx_service
-  #   restart: no
-  #   # ports:
-  #   #   - "${XXX_SERVICE_PORT}:8000"
-  #   volumes:
-  #     - ./xxx_service/config:/app/config
-  #     - ./xxx_service/tmp:/app/tmp
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.docker.network=my_docker_network"
-  #     - "traefik.http.routers.xxx-service.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/xxx`)"
-  #     - "traefik.http.routers.xxx-service.entrypoints=web"
-  #     - "traefik.http.routers.xxx-service.middlewares=cors@file"
-  #     - "traefik.http.services.xxx-service.loadbalancer.server.port=8000"
-  #   networks:
-  #     - my_docker_network
+  admin_service:
+    image: ${DOCKERHUB_USERNAME}/personal-project-plexo-admin_service:${IMAGE_TAG}
+    container_name: ${STACK_NAME}-admin_service
+    restart: unless-stopped
+    volumes:
+      - ./admin_service/config:/app/config
+      - ./admin_service/tmp:/app/tmp
+    labels:
+      - "plexo.stack=${STACK_NAME}"
+      - "traefik.enable=true"
+      - "traefik.http.routers.${STACK_NAME}-admin.rule=Host(`${API_DOMAIN}`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.${STACK_NAME}-admin.entrypoints=web"
+      - "traefik.http.services.${STACK_NAME}-admin.loadbalancer.server.port=8000"
+    networks:
+      - stack
+
+  caro_game_service:
+    image: ${DOCKERHUB_USERNAME}/personal-project-plexo-caro_game_service:${IMAGE_TAG}
+    container_name: ${STACK_NAME}-caro_game_service
+    restart: unless-stopped
+    volumes:
+      - ./caro_game_service/config:/app/config
+      - ./caro_game_service/tmp:/app/tmp
+    labels:
+      - "plexo.stack=${STACK_NAME}"
+      - "traefik.enable=true"
+      - "traefik.http.routers.${STACK_NAME}-caro-game.rule=Host(`${API_DOMAIN}`) && PathPrefix(`/caro-game`)"
+      - "traefik.http.routers.${STACK_NAME}-caro-game.entrypoints=web"
+      - "traefik.http.services.${STACK_NAME}-caro-game.loadbalancer.server.port=8000"
+    networks:
+      - stack
+
+  # ───────────────────────────── FE ─────────────────────────────
+  # NEXT_PUBLIC_* đã gắn vào image lúc build (CI, theo GitHub Environment); ở đây chỉ có biến đọc lúc chạy.
+
+  plexo_ui:
+    image: ${DOCKERHUB_USERNAME}/personal-project-plexo-plexo_ui:${IMAGE_TAG}
+    container_name: ${STACK_NAME}-plexo_ui
+    restart: unless-stopped
+    environment:
+      - ADMIN_API_INTERNAL_URL=http://admin_service:8000/admin/v1
+      - SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME}
+    labels:
+      - "plexo.stack=${STACK_NAME}"
+      - "traefik.enable=true"
+      # Ứng dụng chính ở root của domain FE (ưu tiên thấp hơn các ứng dụng mở rộng)
+      - "traefik.http.routers.${STACK_NAME}-plexo-ui.rule=Host(`${WEB_DOMAIN}`)"
+      - "traefik.http.routers.${STACK_NAME}-plexo-ui.priority=1"
+      - "traefik.http.routers.${STACK_NAME}-plexo-ui.entrypoints=web"
+      - "traefik.http.services.${STACK_NAME}-plexo-ui.loadbalancer.server.port=3000"
+    networks:
+      - stack
+
+  caro_game_ui:
+    image: ${DOCKERHUB_USERNAME}/personal-project-plexo-caro_game_ui:${IMAGE_TAG}
+    container_name: ${STACK_NAME}-caro_game_ui
+    restart: unless-stopped
+    environment:
+      - CARO_GAME_API_INTERNAL_URL=http://caro_game_service:8000/caro-game/v1
+      - SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME}
+    labels:
+      - "plexo.stack=${STACK_NAME}"
+      - "traefik.enable=true"
+      - "traefik.http.routers.${STACK_NAME}-caro-game-ui.rule=Host(`${WEB_DOMAIN}`) && PathPrefix(`/games/caro`)"
+      - "traefik.http.routers.${STACK_NAME}-caro-game-ui.priority=10"
+      - "traefik.http.routers.${STACK_NAME}-caro-game-ui.entrypoints=web"
+      - "traefik.http.services.${STACK_NAME}-caro-game-ui.loadbalancer.server.port=3000"
+    networks:
+      - stack
+
+  # Thêm service mới: copy một khối BE ở trên, đổi tên service / image / PathPrefix / tên router.
 
 networks:
-  my_docker_network:
+  stack:
+    name: ${STACK_NAME}
     external: true

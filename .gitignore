@@ -1,5 +1,12 @@
-infrastructure/traefik
+# Chỉ commit file mẫu (*.example); file thật chứa mật khẩu / token và dữ liệu không commit.
 infrastructure/.env
+infrastructure/.env.bak*
+infrastructure/traefik
+infrastructure/postgres/data
+infrastructure/postgres/init/*.sql
+infrastructure/redis/data
+infrastructure/redis/users.acl
 
-service/notification_service
 service/.env
+service/*/config/config.json
+service/*/tmp

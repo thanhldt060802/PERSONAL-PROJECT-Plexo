@@ -1,0 +1,18 @@
+{
+    "app": {
+        "name": "notification-service",
+        "env": "prod"
+    },
+    "http": {
+        "port": 8000,
+        "base_path": "/notification",
+        "cors_allowed_origins": [
+            "https://plexo.thanhldt.site"
+        ]
+    },
+    "log": {
+        "level": "info",
+        "format": "json",
+        "file": "/app/tmp/console.log"
+    }
+}
